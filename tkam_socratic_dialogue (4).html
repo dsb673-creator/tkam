@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>To Kill a Mockingbird — Socratic Dialogue</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 1rem; }
+  #app { width: 100%; max-width: 600px; }
+  #name-screen { background: #fff; border-radius: 16px; border: 0.5px solid #ddd; padding: 2rem 1.5rem; text-align: center; margin-top: 2rem; }
+  #name-screen h1 { font-size: 20px; font-weight: 500; color: #185FA5; margin-bottom: 4px; }
+  #name-screen h2 { font-size: 15px; font-weight: 400; color: #555; margin-bottom: 1.5rem; }
+  #name-screen p { font-size: 14px; color: #777; margin-bottom: 0.75rem; }
+  #name-input { width: 100%; padding: 12px 14px; font-size: 16px; border-radius: 10px; border: 0.5px solid #ccc; background: #fafafa; color: #222; margin-bottom: 1rem; }
+  #start-btn { width: 100%; padding: 12px; font-size: 16px; font-weight: 500; border-radius: 10px; border: none; background: #185FA5; color: #fff; cursor: pointer; }
+  #start-btn:hover { background: #0C447C; }
+  #dialogue-screen { display: none; flex-direction: column; gap: 0; }
+  #top-bar { background: #185FA5; border-radius: 16px 16px 0 0; padding: 1rem 1.25rem; color: #fff; }
+  #top-bar h1 { font-size: 16px; font-weight: 500; }
+  #top-bar p { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+  #progress-bar-wrap { background: rgba(255,255,255,0.2); border-radius: 4px; height: 4px; margin-top: 10px; }
+  #progress-bar { background: #fff; border-radius: 4px; height: 4px; width: 0%; transition: width 0.4s; }
+  #chat-area { background: #fff; border-left: 0.5px solid #ddd; border-right: 0.5px solid #ddd; padding: 1rem; display: flex; flex-direction: column; gap: 12px; min-height: 340px; max-height: 55vh; overflow-y: auto; }
+  .bubble { max-width: 88%; padding: 10px 14px; border-radius: 14px; font-size: 15px; line-height: 1.6; }
+  .bubble.claude { background: #f0f0ee; color: #222; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .bubble.student { background: #185FA5; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .typing-bubble { background: #f0f0ee; align-self: flex-start; padding: 12px 16px; border-radius: 14px; border-bottom-left-radius: 4px; display: flex; gap: 5px; align-items: center; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #999; animation: blink 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+  #input-area { background: #fff; border: 0.5px solid #ddd; border-top: none; border-radius: 0 0 16px 16px; padding: 0.75rem 1rem; display: flex; gap: 8px; align-items: flex-end; }
+  #user-input { flex: 1; resize: none; min-height: 44px; max-height: 120px; padding: 10px 12px; font-size: 15px; font-family: inherit; border-radius: 10px; border: 0.5px solid #ccc; background: #fafafa; color: #222; overflow-y: auto; }
+  #send-btn { height: 44px; width: 44px; border-radius: 10px; border: none; background: #185FA5; color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #done-box { background: #EAF3DE; border: 0.5px solid #C0DD97; border-radius: 12px; padding: 1rem 1.25rem; margin-top: 1rem; font-size: 14px; color: #3B6D11; text-align: center; display: none; }
+  #done-box strong { display: block; font-size: 15px; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="name-screen">
+    <h1>To Kill a Mockingbird</h1>
+    <h2>Was Atticus right to defend Tom Robinson?</h2>
+    <p>Enter your first name to begin your Socratic dialogue with Claude.</p>
+    <input id="name-input" type="text" placeholder="Your first name" maxlength="40" />
+    <button id="start-btn" onclick="startDialogue()">Begin dialogue</button>
+  </div>
+
+  <div id="dialogue-screen">
+    <div id="top-bar">
+      <h1>To Kill a Mockingbird</h1>
+      <p id="student-label">Socratic dialogue</p>
+      <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+    </div>
+    <div id="chat-area"></div>
+    <div id="input-area">
+      <textarea id="user-input" placeholder="Type your response…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="send-btn" onclick="sendMessage()">&#8593;</button>
+    </div>
+  </div>
+
+  <div id="done-box">
+    <strong>Dialogue complete</strong>
+    Well done. Your teacher can ask you to share your thoughts from this conversation in the class discussion.
+  </div>
+
+</div>
+<script>
+const SYSTEM = `You are conducting a Socratic dialogue with a 16-18 year old student studying 'To Kill a Mockingbird' by Harper Lee. Your sole focus is the question: Was Atticus Finch right to defend Tom Robinson?
+
+Rules:
+- Ask exactly ONE probing question per response. Never lecture or give your own opinion.
+- Listen carefully and challenge, deepen, or affirm each answer with a follow-up question.
+- Explore: moral duty, professional ethics, social courage, rule of law, racial justice, personal risk, community consequences.
+- Use evidence from the novel when relevant (Atticus's closing speech Ch.20, his words to Scout, the town's reaction).
+- If shallow, gently push for deeper reasoning. If stuck, offer a hypothetical or reframe.
+- Keep responses to 2-4 sentences then one clear question.
+- Warm, respectful tone suitable for older secondary students.
+- After exactly 8 student turns, give a brief encouraging closing reflection (3-4 sentences) summarising key tensions the student explored, without resolving them. End with: "Well done — you have engaged seriously with one of literature's most enduring moral questions."
+- Do not break character. Do not discuss anything outside the novel and this question.`;
+
+let history = [];
+let studentName = '';
+let turns = 0;
+const MAX = 8;
+
+function startDialogue() {
+  studentName = document.getElementById('name-input').value.trim();
+  if (!studentName) { document.getElementById('name-input').focus(); return; }
+  document.getElementById('name-screen').style.display = 'none';
+  const ds = document.getElementById('dialogue-screen');
+  ds.style.display = 'flex';
+  ds.style.flexDirection = 'column';
+  document.getElementById('student-label').textContent = studentName + ' — 0 of 8 responses';
+  callClaude([{ role: 'user', content: `The student's name is ${studentName}. Welcome them briefly and ask your first question.` }], true);
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function addBubble(role, text) {
+  const area = document.getElementById('chat-area');
+  const div = document.createElement('div');
+  div.className = 'bubble ' + role;
+  div.textContent = text;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+function showTyping() {
+  const area = document.getElementById('chat-area');
+  const div = document.createElement('div');
+  div.className = 'typing-bubble';
+  div.id = 'typing';
+  div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div>';
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+function removeTyping() {
+  const t = document.getElementById('typing');
+  if (t) t.remove();
+}
+
+function updateProgress() {
+  document.getElementById('student-label').textContent = studentName + ' — ' + turns + ' of ' + MAX + ' responses';
+  document.getElementById('progress-bar').style.width = (turns / MAX * 100) + '%';
+}
+
+async function callClaude(messages, isOpener) {
+  document.getElementById('send-btn').disabled = true;
+  showTyping();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system: SYSTEM, messages })
+    });
+    const data = await res.json();
+    removeTyping();
+    const reply = (data.content || []).map(b => b.text || '').join('');
+    addBubble('claude', reply);
+    if (isOpener) {
+      history = [
+        { role: 'user', content: `The student's name is ${studentName}. Welcome them briefly and ask your first question.` },
+        { role: 'assistant', content: reply }
+      ];
+    } else {
+      history.push({ role: 'assistant', content: reply });
+    }
+    if (turns >= MAX) {
+      document.getElementById('input-area').style.display = 'none';
+      document.getElementById('done-box').style.display = 'block';
+      document.getElementById('progress-bar').style.width = '100%';
+    }
+  } catch(e) {
+    removeTyping();
+    addBubble('claude', 'Sorry, something went wrong. Please check your connection and try again.');
+  }
+  document.getElementById('send-btn').disabled = false;
+}
+
+function sendMessage() {
+  if (turns >= MAX) return;
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+  addBubble('student', text);
+  input.value = '';
+  input.style.height = 'auto';
+  turns++;
+  updateProgress();
+  history.push({ role: 'user', content: text });
+  callClaude([...history], false);
+}
+</script>
+</body>
+</html>
